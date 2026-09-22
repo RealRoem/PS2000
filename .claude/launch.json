@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ps2000-ui",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "PS2000Test.Ui", "--urls", "http://localhost:5041"],
+      "port": 5041
+    }
+  ]
+}

@@ -1,0 +1,290 @@
+@page "/"
+@using System.Globalization
+@using PS2000Test.Ui.Services
+@inject Ps2000Client Device
+@implements IDisposable
+
+<PageTitle>PS2000 Control Panel</PageTitle>
+
+<div class="dashboard">
+
+    <header class="header">
+        <div class="header-title">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 16a8 8 0 1 1 16 0" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
+                <line x1="12" y1="16" x2="16" y2="10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
+                <circle cx="12" cy="16" r="1.6" fill="var(--accent)" />
+            </svg>
+            <div>
+                <div class="header-title-main">PS2000 Control Panel</div>
+                <div class="header-title-sub">Bench Power Supply Interface</div>
+            </div>
+        </div>
+        <div class="connection-pill">
+            <div class="connection-dot @(_connectionError is null ? "on" : "off")"></div>
+            <span>@(_connectionError is null ? "CONNECTED" : "DISCONNECTED")</span>
+        </div>
+    </header>
+
+    @if (_connectionError is not null)
+    {
+        <div class="error-panel">
+            <div class="error-title">Could not reach the device</div>
+            <div class="error-message">@_connectionError</div>
+            <button class="btn-primary" @onclick="InitializeAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+
+            <div class="column">
+                <div class="card hero">
+                    <div class="hero-label">
+                        <div class="dot @(_powerOn ? "on" : "off")"></div>
+                        <span>OUTPUT VOLTAGE</span>
+                    </div>
+                    <div class="hero-value @(_powerOn ? "on" : "off")">
+                        @VoltageDisplay<span class="hero-unit">V</span>
+                    </div>
+                    <div class="hero-max">MAX @_maxVoltage.ToString("0.0", CultureInfo.InvariantCulture) V</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Set Voltage</div>
+                    <div class="set-voltage-row @(_remoteOn ? "" : "disabled")">
+                        <div class="input-wrap">
+                            <input type="number" min="0" max="@_maxVoltage" step="0.1"
+                                   @bind="_voltageInput" @bind:event="oninput"
+                                   disabled="@(!_remoteOn)" />
+                            <span>V</span>
+                        </div>
+                        <button class="btn-primary" @onclick="ApplyVoltageAsync" disabled="@(!_remoteOn)">Set</button>
+                    </div>
+                    @if (_voltageError is not null)
+                    {
+                        <div class="field-error">@_voltageError</div>
+                    }
+                </div>
+            </div>
+
+            <div class="column">
+                <div class="card">
+                    <div class="card-title">Device Information</div>
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span>Device Type</span>
+                            <span class="mono">@_deviceType</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Serial Number</span>
+                            <span class="mono">@_serialNumber</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Article Number</span>
+                            <span class="mono">@_articleNumber</span>
+                        </div>
+                        <div class="info-row last">
+                            <span>Max Voltage</span>
+                            <span class="mono">@_maxVoltage.ToString("0.0", CultureInfo.InvariantCulture) V</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card controls">
+                    <div class="card-title">Controls</div>
+
+                    <div class="toggle-row @(_remoteOn ? "" : "disabled")">
+                        <div>
+                            <div class="toggle-label">Power Output</div>
+                            <div class="toggle-sub">Enables the output relay</div>
+                        </div>
+                        <div class="toggle-control">
+                            <span class="toggle-status @(_powerOn ? "on" : "off")">@(_powerOn ? "ON" : "OFF")</span>
+                            <button class="switch @(_powerOn ? "on" : "off")" disabled="@(!_remoteOn)" @onclick="TogglePowerAsync"></button>
+                        </div>
+                    </div>
+
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Remote Control</div>
+                            <div class="toggle-sub">Allows commands from this app</div>
+                        </div>
+                        <div class="toggle-control">
+                            <span class="toggle-status @(_remoteOn ? "on" : "off")">@(_remoteOn ? "ON" : "OFF")</span>
+                            <button class="switch @(_remoteOn ? "on" : "off")" @onclick="ToggleRemoteAsync"></button>
+                        </div>
+                    </div>
+
+                    <div class="helper-text">
+                        @(_remoteOn
+                            ? "Remote control active — power output and voltage can be changed."
+                            : "Enable remote control to change power output or voltage.")
+                    </div>
+
+                    @if (_controlError is not null)
+                    {
+                        <div class="field-error">@_controlError</div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string? _connectionError;
+    private string? _voltageError;
+    private string? _controlError;
+
+    private string _deviceType = "";
+    private string _serialNumber = "";
+    private string _articleNumber = "";
+    private double _maxVoltage;
+    private double _currentVoltage;
+    private bool _powerOn;
+    private bool _remoteOn;
+    private string _voltageInput = "0.0";
+
+    private CancellationTokenSource? _pollingCts;
+
+    private string VoltageDisplay => _currentVoltage.ToString("0.00", CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeAsync();
+        if (_connectionError is null)
+        {
+            _pollingCts = new CancellationTokenSource();
+            _ = PollLoopAsync(_pollingCts.Token);
+        }
+    }
+
+    private async Task InitializeAsync()
+    {
+        _connectionError = null;
+        try
+        {
+            _deviceType = await Device.GetDeviceTypeAsync();
+            _serialNumber = await Device.GetSerialNumberAsync();
+            _articleNumber = await Device.GetArticleNumberAsync();
+            _maxVoltage = await Device.GetNominalVoltageAsync();
+
+            // Reflect whatever state the device is actually in - do not command it into a
+            // "known" state on connect. The output may already be live (e.g. someone set a
+            // voltage on the front panel, possibly into a real load); silently forcing it off
+            // just because the app was opened would be a worse surprise than leaving it alone.
+            // Remote control likewise starts however it actually is - physical front-panel
+            // control stays in charge until the user explicitly enables it from this UI.
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _connectionError = ex.Message;
+        }
+    }
+
+    // Polls the device's live status continuously so "Output Voltage" tracks reality even
+    // when someone changes it on the unit's own front panel (remote control off). Each cycle
+    // waits for the previous read to finish, then a short pause, rather than a fixed-interval
+    // timer - so a slow response can't cause overlapping polls to pile up against the single
+    // physical port. Errors are swallowed and retried next tick instead of tearing down the
+    // page over one missed read (flaky USB hardware, or the page closing mid-request).
+    private async Task PollLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await RefreshStatusAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await Task.Delay(300, token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    // The "Set Voltage" input is only ever touched here at the moment remote control turns
+    // on - seeded from a GET so it starts from whatever the device is actually at (which may
+    // have been set on its physical front panel), not reset to 0. After that it is left
+    // alone: the user is typing into it, and the continuous live poll must not fight that.
+    private async Task RefreshStatusAsync()
+    {
+        var status = await Device.GetStatusAsync();
+        bool remoteJustEnabled = status.RemoteControlActive && !_remoteOn;
+
+        _remoteOn = status.RemoteControlActive;
+        _powerOn = status.OutputActive;
+        _currentVoltage = _maxVoltage * status.VoltagePercent / 100.0;
+
+        if (remoteJustEnabled)
+        {
+            _voltageInput = _currentVoltage.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollingCts?.Cancel();
+        _pollingCts?.Dispose();
+    }
+
+    private async Task TogglePowerAsync()
+    {
+        _controlError = null;
+        try
+        {
+            await Device.SetPowerOutputAsync(!_powerOn);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _controlError = ex.Message;
+        }
+    }
+
+    private async Task ToggleRemoteAsync()
+    {
+        _controlError = null;
+        try
+        {
+            await Device.SetRemoteControlAsync(!_remoteOn);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _controlError = ex.Message;
+        }
+    }
+
+    private async Task ApplyVoltageAsync()
+    {
+        _voltageError = null;
+        if (!double.TryParse(_voltageInput, NumberStyles.Float, CultureInfo.InvariantCulture, out double volts))
+        {
+            _voltageError = "Enter a valid number.";
+            return;
+        }
+
+        volts = Math.Clamp(volts, 0, _maxVoltage);
+        try
+        {
+            await Device.SetVoltageAsync(volts);
+            await RefreshStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _voltageError = ex.Message;
+        }
+    }
+}
