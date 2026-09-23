@@ -1,13 +1,10 @@
 using System.IO.Ports;
 using System.Text;
 
-namespace PS2000Test.Ui.Services;
-
-/// <summary>Live status snapshot read from the device (OBJ 71 / STATUS_ACTUAL_VALUES).</summary>
-public readonly record struct DeviceStatus(bool RemoteControlActive, bool OutputActive, double VoltagePercent);
+namespace PS2000Test.PowerSupply;
 
 /// <summary>
-/// Binary telegram client for the PS2000B bench power supply.
+/// Binary telegram client for the PS2000B bench power supply, implementing <see cref="IPowerSupply"/>.
 ///
 /// Telegram shape: SD, DN, OBJ, [DATA...], checksumHigh, checksumLow (checksum = sum of every
 /// preceding byte). The SD (start delimiter) byte packs: bits 0-3 a length nibble, bit 4
@@ -21,7 +18,7 @@ public readonly record struct DeviceStatus(bool RemoteControlActive, bool Output
 /// SetVoltageAsync, which is ported from the original exploratory console app rather than
 /// independently confirmed against the object list; flagged below.
 /// </summary>
-public sealed class Ps2000Client : IDisposable
+internal sealed class Ps2000PowerSupply : IPowerSupply
 {
     private readonly string _portName;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -45,9 +42,9 @@ public sealed class Ps2000Client : IDisposable
     private const byte ControlOutputOn = 0x01;    // p2: output on
     private const byte ControlOutputOff = 0x00;   // p2: output off
 
-    public Ps2000Client(IConfiguration configuration)
+    public Ps2000PowerSupply(string portName)
     {
-        _portName = configuration["Ps2000:PortName"] ?? "/dev/tty.usbmodem26865804071";
+        _portName = portName;
     }
 
     public Task<string> GetDeviceTypeAsync() => GetIdentityStringAsync(ObjDeviceType);
@@ -71,13 +68,6 @@ public sealed class Ps2000Client : IDisposable
         bool outputActive = (data[1] & 0b1) != 0;
         int word = (data[2] << 8) | data[3];
         return new DeviceStatus(remoteActive, outputActive, word / 256.0);
-    }
-
-    public async Task<double> GetVoltageAsync()
-    {
-        double nominal = await GetNominalVoltageAsync();
-        var status = await GetStatusAsync();
-        return nominal * status.VoltagePercent / 100.0;
     }
 
     public async Task SetVoltageAsync(double volts)

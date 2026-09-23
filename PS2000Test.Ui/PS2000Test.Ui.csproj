@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+    <ProjectReference Include="..\PS2000Test.PowerSupply\PS2000Test.PowerSupply.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,12 +1,14 @@
 using PS2000Test.Ui.Components;
-using PS2000Test.Ui.Services;
+using PS2000Test.PowerSupply;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddSingleton<Ps2000Client>();
+
+string portName = builder.Configuration["Ps2000:PortName"] ?? "/dev/tty.usbmodem26865804071";
+builder.Services.AddSingleton<IPowerSupply>(_ => PowerSupplyFactory.Create(portName));
 
 var app = builder.Build();
 
