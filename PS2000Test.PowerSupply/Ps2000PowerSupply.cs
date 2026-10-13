@@ -18,7 +18,7 @@ namespace PS2000Test.PowerSupply;
 /// SetVoltageAsync, which is ported from the original exploratory console app rather than
 /// independently confirmed against the object list; flagged below.
 /// </summary>
-internal sealed class Ps2000PowerSupply : IPowerSupply
+internal class Ps2000PowerSupply : IPowerSupply
 {
     private readonly string _portName;
     private readonly SemaphoreSlim _lock = new(1, 1);
