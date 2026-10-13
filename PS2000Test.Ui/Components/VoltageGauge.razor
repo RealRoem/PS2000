@@ -1,0 +1,56 @@
+@using System.Globalization
+
+<div class="gauge @(Active ? "on" : "off")">
+    <svg viewBox="-6 -6 252 252" aria-hidden="true">
+        @foreach (var tick in Ticks)
+        {
+            <line class="tick @(tick.Major ? "major" : "")" x1="@tick.X1" y1="@tick.Y1" x2="@tick.X2" y2="@tick.Y2" />
+        }
+        <circle class="track" cx="120" cy="120" r="@Radius" transform="rotate(135 120 120)"
+                stroke-dasharray="@Dash(Arc) @Dash(Circumference)" />
+        <circle class="fill" cx="120" cy="120" r="@Radius" transform="rotate(135 120 120)"
+               stroke-dasharray="@Dash(FillLength) @Dash(Circumference)" />
+        @if (SetpointPercent is { } setpoint)
+        {
+            var (x, y) = Point(setpoint, Radius);
+            <circle class="setpoint" cx="@Dash(x)" cy="@Dash(y)" r="7" />
+        }
+        <text class="scale" x="52" y="226" text-anchor="middle">0.0</text>
+        <text class="scale" x="188" y="226" text-anchor="middle">@MaxVolts.ToString("0.0", CultureInfo.InvariantCulture)</text>
+    </svg>
+    <div class="gauge-content">@ChildContent</div>
+</div>
+
+@code {
+    private const double Radius = 96;
+    private const double ArcDegrees = 270; // open at the bottom
+    private const double StartDegrees = 135;
+
+    [Parameter] public double MaxVolts { get; set; }
+    [Parameter] public double Percent { get; set; }
+    [Parameter] public double? SetpointPercent { get; set; }
+    [Parameter] public bool Active { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private static double Circumference => 2 * Math.PI * Radius;
+    private static double Arc => Circumference * ArcDegrees / 360;
+    private double FillLength => Arc * Math.Clamp(Percent, 0, 100) / 100;
+
+    private static (double X, double Y) Point(double percent, double radius)
+    {
+        double angle = (StartDegrees + ArcDegrees * Math.Clamp(percent, 0, 100) / 100) * Math.PI / 180;
+        return (120 + radius * Math.Cos(angle), 120 + radius * Math.Sin(angle));
+    }
+
+    // One tick every 5 %, a longer one every 25 %.
+    private static IEnumerable<(string X1, string Y1, string X2, string Y2, bool Major)> Ticks =>
+        Enumerable.Range(0, 21).Select(i =>
+        {
+            bool major = i % 5 == 0;
+            var (x1, y1) = Point(i * 5, Radius + 14);
+            var (x2, y2) = Point(i * 5, Radius + (major ? 24 : 19));
+            return (Dash(x1), Dash(y1), Dash(x2), Dash(y2), major);
+        });
+
+    private static string Dash(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+}

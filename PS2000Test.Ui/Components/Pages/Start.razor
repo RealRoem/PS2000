@@ -1,0 +1,100 @@
+@page "/"
+@using PS2000Test.PowerSupply
+@inject PowerSupplySelector Selector
+@inject NavigationManager Nav
+
+<PageTitle>PS2000 Control Panel</PageTitle>
+
+<div class="start">
+    <div class="panel">
+        <div class="brand">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 16a8 8 0 1 1 16 0" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
+                <line x1="12" y1="16" x2="16" y2="10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
+                <circle cx="12" cy="16" r="1.6" fill="var(--accent)" />
+            </svg>
+            <div>
+                <div class="brand-name">PS2000 Control Panel</div>
+                <div class="brand-sub">Choose a power supply to get started</div>
+            </div>
+        </div>
+
+        <div class="scan @(_scanning ? "" : _found.Count > 0 ? "found" : "none")">
+            <div class="radar" aria-hidden="true">
+                <span></span><span></span><span></span><i></i>
+            </div>
+            <div class="scan-text">
+                <div class="scan-title">
+                    @(_scanning ? "Scanning serial ports..." : _found.Count > 0
+                        ? $"Found {_found.Count} power supply{(_found.Count > 1 ? "ies" : "")}"
+                        : "No power supply found")
+                </div>
+                <div class="scan-sub">
+                    @(_scanning ? "Looking for a PS2000 on every USB port" : "You can always use the dummy instead")
+                </div>
+            </div>
+            <button class="btn-secondary" @onclick="ScanAsync" disabled="@_scanning">Rescan</button>
+        </div>
+
+        <div class="options">
+            @foreach (var device in _found)
+            {
+                <button class="option" @onclick="() => UseDevice(device)">
+                    <div class="option-dot"></div>
+                    <div class="option-text">
+                        <div class="option-name">@device.DeviceType</div>
+                        <div class="sub mono">@device.PortName · S/N @device.SerialNumber</div>
+                    </div>
+                    <span class="option-cta">Use this →</span>
+                </button>
+            }
+
+            <button class="option dummy" @onclick="UseDummy">
+                <div class="option-dot"></div>
+                <div class="option-text">
+                    <div class="option-name">Dummy</div>
+                    <div class="sub">Simulated device - no hardware needed</div>
+                </div>
+                <span class="option-cta">Use dummy →</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _scanning = true;
+    private IReadOnlyList<DetectedPowerSupply> _found = [];
+
+    // Scanning from OnAfterRender rather than OnInitialized so it doesn't also run during
+    // Blazor's static prerender, and the previous device is released first so its port can
+    // be probed again.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Selector.Clear();
+            await ScanAsync();
+        }
+    }
+
+    private async Task ScanAsync()
+    {
+        _scanning = true;
+        StateHasChanged();
+        _found = await PowerSupplyScanner.ScanAsync();
+        _scanning = false;
+        StateHasChanged();
+    }
+
+    private void UseDevice(DetectedPowerSupply device)
+    {
+        Selector.Select(PowerSupplyFactory.Create(device.PortName), isDummy: false);
+        Nav.NavigateTo("/dashboard");
+    }
+
+    private void UseDummy()
+    {
+        Selector.Select(PowerSupplyFactory.CreateDummy(), isDummy: true);
+        Nav.NavigateTo("/dashboard");
+    }
+}

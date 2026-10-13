@@ -1,0 +1,99 @@
+@using System.Globalization
+
+<div class="chart">
+    <div class="area">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Output voltage history" role="img">
+            <defs>
+                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--accent)" stop-opacity="0.3" />
+                    <stop offset="1" stop-color="var(--accent)" stop-opacity="0" />
+                </linearGradient>
+            </defs>
+
+            @foreach (double fraction in YFractions)
+            {
+                <line class="grid-line" x1="0" x2="100" y1="@F(Y(_top * fraction))" y2="@F(Y(_top * fraction))" />
+            }
+            @foreach (int seconds in XSeconds)
+            {
+                <line class="grid-line" x1="@F(X(_now - TimeSpan.FromSeconds(seconds)))" x2="@F(X(_now - TimeSpan.FromSeconds(seconds)))" y1="0" y2="100" />
+            }
+
+            @if (Setpoint is { } setpoint)
+            {
+                <line class="setpoint" x1="0" x2="100" y1="@F(Y(setpoint))" y2="@F(Y(setpoint))" />
+            }
+
+            @if (_points.Count > 1)
+            {
+                <polygon points="@PolygonPoints" fill="url(#chart-fill)" />
+                <polyline class="line" points="@LinePoints" />
+            }
+        </svg>
+
+        @foreach (double fraction in YFractions)
+        {
+            <span class="y-label" style="top: @F(Y(_top * fraction))%">@Volts(_top * fraction)</span>
+        }
+        @foreach (int seconds in XSeconds)
+        {
+            <span class="x-label" style="left: @F(X(_now - TimeSpan.FromSeconds(seconds)))%">@(seconds == 0 ? "now" : $"-{seconds}s")</span>
+        }
+
+        @if (Setpoint is { } label)
+        {
+            <span class="set-label" style="top: @F(Y(label))%">Set @Volts(label) V</span>
+        }
+
+        @if (_points.Count > 1)
+        {
+            <i class="head" style="left: @F(_points[^1].X)%; top: @F(_points[^1].Y)%"></i>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly double[] YFractions = { 0, 0.5, 1 };
+    private static readonly int[] XSeconds = { 60, 45, 30, 15, 0 };
+
+    private DateTime _now;
+    private double _top = 1;
+    private List<(double X, double Y)> _points = [];
+
+    [Parameter] public IReadOnlyCollection<(DateTime Time, double Volts)> Samples { get; set; } = [];
+    [Parameter] public double Max { get; set; }
+    [Parameter] public double? Setpoint { get; set; }
+    [Parameter] public TimeSpan Window { get; set; }
+
+    private string LinePoints => string.Join(' ', _points.Select(p => $"{F(p.X)},{F(p.Y)}"));
+
+    private string PolygonPoints =>
+        $"{F(_points[0].X)},100 {LinePoints} {F(_points[^1].X)},100";
+
+    protected override void OnParametersSet()
+    {
+        _now = DateTime.UtcNow;
+
+        // Scale to what is actually happening (rounded to a tidy 1/2/5 step, capped at the unit's
+        // maximum) - a fixed 0..84 V axis turns every 3-30 V run into a flat line.
+        double peak = Math.Max(Samples.Count > 0 ? Samples.Max(s => s.Volts) : 0, Setpoint ?? 0) * 1.15;
+        _top = Math.Min(NiceCeiling(Math.Max(peak, 5)), Max > 0 ? Max : double.MaxValue);
+        _points = Samples.Select(s => (X(s.Time), Y(s.Volts))).ToList();
+    }
+
+    private static double NiceCeiling(double value)
+    {
+        double magnitude = Math.Pow(10, Math.Floor(Math.Log10(value)));
+        double fraction = value / magnitude;
+        return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * magnitude;
+    }
+
+    // Plot coordinates are percentages of the plot area so the chart stretches to any panel size.
+    private double X(DateTime time) => Math.Clamp((time - (_now - Window)) / Window, 0, 1) * 100;
+
+    private double Y(double volts) => (1 - Math.Clamp(volts / _top, 0, 1)) * 100;
+
+    private static string Volts(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
+
+    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+}

@@ -1,8 +1,22 @@
+:root {
+    --bg: oklch(0.13 0.012 250);
+    --surface: oklch(0.175 0.014 250);
+    --border: oklch(0.28 0.02 250);
+    --text: oklch(0.94 0.005 250);
+    --text-muted: oklch(0.65 0.015 250);
+    --text-dim: oklch(0.42 0.02 250);
+    --accent: oklch(0.82 0.13 205);
+    --green: oklch(0.78 0.19 152);
+    --amber: oklch(0.8 0.16 75);
+    --red: oklch(0.7 0.19 25);
+    --track-off: oklch(0.28 0.02 250);
+}
+
 html, body {
     margin: 0;
     padding: 0;
     min-height: 100%;
-    background: oklch(0.16 0.006 260);
+    background: var(--bg);
 }
 
 h1:focus {

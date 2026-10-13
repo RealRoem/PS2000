@@ -1,141 +1,155 @@
-@page "/"
+@page "/dashboard"
 @using System.Globalization
 @using PS2000Test.PowerSupply
-@inject IPowerSupply Device
+@inject PowerSupplySelector Selector
+@inject NavigationManager Nav
 @implements IDisposable
 
 <PageTitle>PS2000 Control Panel</PageTitle>
 
 <div class="dashboard">
 
-    <header class="header">
-        <div class="header-title">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <section class="panel info" style="--d: 0ms">
+        <div class="brand">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M4 16a8 8 0 1 1 16 0" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
                 <line x1="12" y1="16" x2="16" y2="10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" />
                 <circle cx="12" cy="16" r="1.6" fill="var(--accent)" />
             </svg>
-            <div>
-                <div class="header-title-main">PS2000 Control Panel</div>
-                <div class="header-title-sub">Bench Power Supply Interface</div>
+            <div class="brand-name">PS2000 Control Panel</div>
+        </div>
+        <div class="status-row">
+            <span class="status">
+                <i class="led @(_connectionError is null ? "on" : "bad")"></i>
+                @(_connectionError is null ? "Connected" : "Disconnected")@(Selector.IsDummy ? " · Dummy" : "")
+            </span>
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/")'>Change device</button>
+        </div>
+        @if (_connectionError is null)
+        {
+            <div class="info-list">
+                <div class="info-row"><span>Type</span><span class="mono">@_deviceType</span></div>
+                <div class="info-row"><span>Serial</span><span class="mono">@_serialNumber</span></div>
+                <div class="info-row"><span>Article</span><span class="mono">@_articleNumber</span></div>
+                <div class="info-row"><span>Max voltage</span><span class="mono">@_maxVoltage.ToString("0.0", CultureInfo.InvariantCulture) V</span></div>
             </div>
-        </div>
-        <div class="connection-pill">
-            <div class="connection-dot @(_connectionError is null ? "on" : "off")"></div>
-            <span>@(_connectionError is null ? "CONNECTED" : "DISCONNECTED")</span>
-        </div>
-    </header>
+        }
+    </section>
 
     @if (_connectionError is not null)
     {
         <div class="error-panel">
             <div class="error-title">Could not reach the device</div>
             <div class="error-message">@_connectionError</div>
-            <button class="btn-primary" @onclick="InitializeAsync">Retry</button>
+            <button class="btn-set" @onclick="InitializeAsync">Retry</button>
         </div>
     }
     else
     {
-        <div class="grid">
+        <section class="panel history" style="--d: 80ms">
+            <div class="panel-head">
+                <span class="title">History</span>
+            </div>
+            <VoltageChart Samples="_history" Max="_maxVoltage" Setpoint="_appliedSetpoint" Window="HistoryWindow" />
+        </section>
 
-            <div class="column">
-                <div class="card hero">
-                    <div class="hero-label">
-                        <div class="dot @(_powerOn ? "on" : "off")"></div>
-                        <span>OUTPUT VOLTAGE</span>
+        <section class="panel setpanel @(_remoteOn ? "" : "disabled")" style="--d: 160ms">
+            <div class="panel-head">
+                <span class="title">Set voltage</span>
+                @if (_pending)
+                {
+                    <span class="badge">Pending</span>
+                }
+            </div>
+            <div class="setbody">
+                <div class="vslider-wrap" style="--f: @SliderFraction.ToString("0.####", CultureInfo.InvariantCulture)">
+                    <div class="vticks" aria-hidden="true">
+                        @for (int i = 0; i <= 20; i++)
+                        {
+                            <i class="vt @(i % 5 == 0 ? "major" : "")" style="bottom: @(i * 5)%"></i>
+                        }
+                        @foreach (double fraction in new[] { 0.0, 0.25, 0.5, 0.75, 1.0 })
+                        {
+                            <span class="vlabel" style="bottom: @(fraction * 100)%">@((_maxVoltage * fraction).ToString("0.0", CultureInfo.InvariantCulture))</span>
+                        }
                     </div>
-                    <div class="hero-value @(_powerOn ? "on" : "off")">
-                        @VoltageDisplay<span class="hero-unit">V</span>
-                    </div>
-                    <div class="hero-max">MAX @_maxVoltage.ToString("0.0", CultureInfo.InvariantCulture) V</div>
+                    <input type="range" class="vslider" min="0" max="@_maxVoltage" step="0.1" aria-label="Set voltage"
+                           value="@_voltageInput" @oninput="OnVoltageInput"
+                           disabled="@(!_remoteOn)" />
                 </div>
-
-                <div class="card">
-                    <div class="card-title">Set Voltage</div>
-                    <div class="set-voltage-row @(_remoteOn ? "" : "disabled")">
-                        <div class="input-wrap">
-                            <input type="number" min="0" max="@_maxVoltage" step="0.1"
-                                   @bind="_voltageInput" @bind:event="oninput"
-                                   disabled="@(!_remoteOn)" />
-                            <span>V</span>
-                        </div>
-                        <button class="btn-primary" @onclick="ApplyVoltageAsync" disabled="@(!_remoteOn)">Set</button>
+                <div class="setcontrols">
+                    <div class="input-wrap">
+                        <input type="text" inputmode="decimal" autocomplete="off"
+                               value="@_voltageInput" @oninput="OnVoltageInput" @onkeydown="OnVoltageKey"
+                               disabled="@(!_remoteOn)" />
+                        <span>V</span>
                     </div>
+                    <div class="segmented">
+                        @foreach (double step in Steps)
+                        {
+                            <button class="seg @(step == _step ? "active" : "")" @onclick="() => _step = step">
+                                @step.ToString("0.#", CultureInfo.InvariantCulture)
+                            </button>
+                        }
+                    </div>
+                    <div class="nudge">
+                        <button class="btn-nudge" disabled="@(!_remoteOn)" @onclick="() => Nudge(_step)">▲</button>
+                        <button class="btn-nudge" disabled="@(!_remoteOn)" @onclick="() => Nudge(-_step)">▼</button>
+                    </div>
+                    <button class="btn-set @(_pending ? "pending" : "")" @onclick="ApplyVoltageAsync" disabled="@(!_remoteOn)">Set</button>
                     @if (_voltageError is not null)
                     {
                         <div class="field-error">@_voltageError</div>
                     }
                 </div>
             </div>
+        </section>
 
-            <div class="column">
-                <div class="card">
-                    <div class="card-title">Device Information</div>
-                    <div class="info-list">
-                        <div class="info-row">
-                            <span>Device Type</span>
-                            <span class="mono">@_deviceType</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Serial Number</span>
-                            <span class="mono">@_serialNumber</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Article Number</span>
-                            <span class="mono">@_articleNumber</span>
-                        </div>
-                        <div class="info-row last">
-                            <span>Max Voltage</span>
-                            <span class="mono">@_maxVoltage.ToString("0.0", CultureInfo.InvariantCulture) V</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card controls">
-                    <div class="card-title">Controls</div>
-
-                    <div class="toggle-row @(_remoteOn ? "" : "disabled")">
-                        <div>
-                            <div class="toggle-label">Power Output</div>
-                            <div class="toggle-sub">Enables the output relay</div>
-                        </div>
-                        <div class="toggle-control">
-                            <span class="toggle-status @(_powerOn ? "on" : "off")">@(_powerOn ? "ON" : "OFF")</span>
-                            <button class="switch @(_powerOn ? "on" : "off")" disabled="@(!_remoteOn)" @onclick="TogglePowerAsync"></button>
-                        </div>
-                    </div>
-
-                    <div class="toggle-row">
-                        <div>
-                            <div class="toggle-label">Remote Control</div>
-                            <div class="toggle-sub">Allows commands from this app</div>
-                        </div>
-                        <div class="toggle-control">
-                            <span class="toggle-status @(_remoteOn ? "on" : "off")">@(_remoteOn ? "ON" : "OFF")</span>
-                            <button class="switch @(_remoteOn ? "on" : "off")" @onclick="ToggleRemoteAsync"></button>
-                        </div>
-                    </div>
-
-                    <div class="helper-text">
-                        @(_remoteOn
-                            ? "Remote control active — power output and voltage can be changed."
-                            : "Enable remote control to change power output or voltage.")
-                    </div>
-
-                    @if (_controlError is not null)
-                    {
-                        <div class="field-error">@_controlError</div>
-                    }
-                </div>
+        <section class="panel hero" style="--d: 240ms">
+            <div class="panel-head">
+                <span class="title"><i class="led @(_powerOn ? "on" : "off")"></i>Output voltage</span>
             </div>
+            <div class="gauge-stage">
+                <VoltageGauge MaxVolts="_maxVoltage"
+                              Percent="@(_maxVoltage > 0 ? _currentVoltage / _maxVoltage * 100 : 0)"
+                              SetpointPercent="@(_appliedSetpoint is { } sp && _maxVoltage > 0 ? sp / _maxVoltage * 100 : null)"
+                              Active="_powerOn">
+                    <div class="hero-value @(_powerOn ? "on" : "off")">
+                        @VoltageDisplay<span class="hero-unit">V</span>
+                    </div>
+                </VoltageGauge>
+            </div>
+        </section>
+
+        <div class="controls" style="--d: 320ms">
+            <button class="tile @(_powerOn ? "on" : "")" disabled="@(!_remoteOn)" @onclick="TogglePowerAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.2a8 8 0 1 0 11.4 0" /></svg>
+                <span class="tile-text">
+                    <span class="tile-name">Output</span>
+                    <span class="tile-state">@(!_remoteOn ? "Needs remote" : _powerOn ? "ON" : "OFF")</span>
+                </span>
+            </button>
+            <button class="tile @(_remoteOn ? "on" : "")" @onclick="ToggleRemoteAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M12 19h.01" /></svg>
+                <span class="tile-text">
+                    <span class="tile-name">Remote</span>
+                    <span class="tile-state">@(_remoteOn ? "ON" : "OFF")</span>
+                </span>
+            </button>
         </div>
     }
+
+    <div class="toasts">
+        @foreach (var toast in _toasts)
+        {
+            <div class="toast @(toast.IsError ? "error" : "ok")" @key="toast.Id">@toast.Text</div>
+        }
+    </div>
 </div>
 
 @code {
     private string? _connectionError;
     private string? _voltageError;
-    private string? _controlError;
 
     private string _deviceType = "";
     private string _serialNumber = "";
@@ -148,10 +162,44 @@
 
     private CancellationTokenSource? _pollingCts;
 
+    private static readonly double[] Steps = { 0.1, 1, 10 };
+    private double _step = 1;
+
+    private static readonly TimeSpan HistoryWindow = TimeSpan.FromSeconds(60);
+    private readonly Queue<(DateTime Time, double Volts)> _history = new();
+
+    // Last voltage this app sent, shown as the set point on the gauge/chart. Unknown (null)
+    // until the user sets one: the device can't be asked for its set point, and the measured
+    // voltage is 0 while the output is off.
+    private double? _appliedSetpoint;
+    private bool _pending;
+
+    private sealed record Toast(int Id, string Text, bool IsError);
+    private readonly List<Toast> _toasts = new();
+    private int _nextToastId;
+    private bool _disposed;
+
+    private double SliderFraction =>
+        double.TryParse(_voltageInput, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && _maxVoltage > 0
+            ? Math.Clamp(v / _maxVoltage, 0, 1)
+            : 0;
+
+    // Measured voltage is shown with 2 decimals, the set point with 1 (the dot is forced so
+    // the browser's locale never turns it into a comma).
+    private static string Setpoint(double volts) => volts.ToString("0.0", CultureInfo.InvariantCulture);
+
     private string VoltageDisplay => _currentVoltage.ToString("0.00", CultureInfo.InvariantCulture);
+
+    private IPowerSupply Device => Selector.Current!;
 
     protected override async Task OnInitializedAsync()
     {
+        if (Selector.Current is null)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
         await InitializeAsync();
     }
 
@@ -166,6 +214,7 @@
         _pollingCts?.Cancel();
         _pollingCts?.Dispose();
         _pollingCts = null;
+        _history.Clear();
         try
         {
             _deviceType = await Device.GetDeviceTypeAsync();
@@ -203,6 +252,13 @@
             try
             {
                 await RefreshStatusAsync();
+                var now = DateTime.UtcNow;
+                _history.Enqueue((now, _currentVoltage));
+                while (_history.Peek().Time < now - HistoryWindow)
+                {
+                    _history.Dequeue();
+                }
+
                 await InvokeAsync(StateHasChanged);
             }
             catch
@@ -235,19 +291,39 @@
 
         if (remoteJustEnabled)
         {
-            _voltageInput = _currentVoltage.ToString("0.0", CultureInfo.InvariantCulture);
+            _voltageInput = Setpoint(_currentVoltage);
+            _pending = false;
         }
+
+        if (!status.RemoteControlActive)
+        {
+            _appliedSetpoint = null;
+        }
+    }
+
+    private async Task ShowToastAsync(string text, bool isError = false)
+    {
+        var toast = new Toast(++_nextToastId, text, isError);
+        _toasts.Add(toast);
+        await Task.Delay(4000);
+        if (_disposed)
+        {
+            return;
+        }
+
+        _toasts.Remove(toast);
+        await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
+        _disposed = true;
         _pollingCts?.Cancel();
         _pollingCts?.Dispose();
     }
 
     private async Task TogglePowerAsync()
     {
-        _controlError = null;
         try
         {
             await Device.SetPowerOutputAsync(!_powerOn);
@@ -255,13 +331,12 @@
         }
         catch (Exception ex)
         {
-            _controlError = ex.Message;
+            _ = ShowToastAsync(ex.Message, isError: true);
         }
     }
 
     private async Task ToggleRemoteAsync()
     {
-        _controlError = null;
         try
         {
             await Device.SetRemoteControlAsync(!_remoteOn);
@@ -269,7 +344,7 @@
         }
         catch (Exception ex)
         {
-            _controlError = ex.Message;
+            _ = ShowToastAsync(ex.Message, isError: true);
         }
     }
 
@@ -282,15 +357,49 @@
             return;
         }
 
-        volts = Math.Clamp(volts, 0, _maxVoltage);
+        volts = Math.Round(Math.Clamp(volts, 0, _maxVoltage), 1);
         try
         {
             await Device.SetVoltageAsync(volts);
+            _appliedSetpoint = volts;
+            _voltageInput = Setpoint(volts);
+            _pending = false;
             await RefreshStatusAsync();
+            _ = ShowToastAsync($"Voltage set to {Setpoint(volts)} V");
         }
         catch (Exception ex)
         {
-            _voltageError = ex.Message;
+            _ = ShowToastAsync(ex.Message, isError: true);
+        }
+    }
+
+    private void Nudge(double delta)
+    {
+        double.TryParse(_voltageInput, NumberStyles.Float, CultureInfo.InvariantCulture, out double current);
+        double next = Math.Clamp(Math.Round(current + delta, 1), 0, _maxVoltage);
+        _voltageInput = Setpoint(next);
+        _pending = true;
+    }
+
+    private void OnVoltageInput(ChangeEventArgs e)
+    {
+        _voltageInput = e.Value?.ToString() ?? "";
+        _pending = true;
+    }
+
+    private async Task OnVoltageKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Enter":
+                await ApplyVoltageAsync();
+                break;
+            case "ArrowUp":
+                Nudge(_step);
+                break;
+            case "ArrowDown":
+                Nudge(-_step);
+                break;
         }
     }
 }
