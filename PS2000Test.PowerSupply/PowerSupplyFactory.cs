@@ -9,4 +9,6 @@ public static class PowerSupplyFactory
     public static IPowerSupply Create(string portName) => new Ps2000PowerSupply(portName);
 
     public static IPowerSupply CreateDummy() => new DummyPowerSupply();
+
+    public static IPowerSupply CreateMqtt(string brokerHost, string psuId) => new MqttPowerSupply(brokerHost, psuId);
 }
