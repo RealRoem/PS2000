@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PS2000Test.Ui", "PS2000Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PS2000Test.PowerSupply", "PS2000Test.PowerSupply\PS2000Test.PowerSupply.csproj", "{9831DD4B-6575-43A1-94FC-C4E22693B3B5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PS2000Test.PsuAgent", "PS2000Test.PsuAgent\PS2000Test.PsuAgent.csproj", "{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{9831DD4B-6575-43A1-94FC-C4E22693B3B5}.Release|x64.Build.0 = Release|Any CPU
 		{9831DD4B-6575-43A1-94FC-C4E22693B3B5}.Release|x86.ActiveCfg = Release|Any CPU
 		{9831DD4B-6575-43A1-94FC-C4E22693B3B5}.Release|x86.Build.0 = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|x64.Build.0 = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Debug|x86.Build.0 = Debug|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|x64.ActiveCfg = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|x64.Build.0 = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|x86.ActiveCfg = Release|Any CPU
+		{A8616246-84A8-4AD6-B6CD-CBF08EE1D79F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
