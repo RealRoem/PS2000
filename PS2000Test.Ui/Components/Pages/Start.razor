@@ -49,6 +49,23 @@
                 </button>
             }
 
+            <form class="option mqtt" @onsubmit="UseMqtt">
+                <div class="option-dot"></div>
+                <div class="option-text">
+                    <div class="option-name">MQTT</div>
+                    <div class="sub">PSU on another machine, reached through the broker</div>
+                    <div class="mqtt-fields">
+                        <input @bind="_mqttHost" placeholder="Broker host, e.g. 192.168.10.128" aria-label="Broker host" />
+                        <input @bind="_mqttPsuId" placeholder="PSU id (serial number)" aria-label="PSU id" />
+                    </div>
+                    @if (_mqttError is not null)
+                    {
+                        <div class="mqtt-error">@_mqttError</div>
+                    }
+                </div>
+                <button class="option-cta" type="submit">Connect →</button>
+            </form>
+
             <button class="option dummy" @onclick="UseDummy">
                 <div class="option-dot"></div>
                 <div class="option-text">
@@ -64,6 +81,9 @@
 @code {
     private bool _scanning = true;
     private IReadOnlyList<DetectedPowerSupply> _found = [];
+    private string _mqttHost = "";
+    private string _mqttPsuId = "";
+    private string? _mqttError;
 
     // Scanning from OnAfterRender rather than OnInitialized so it doesn't also run during
     // Blazor's static prerender, and the previous device is released first so its port can
@@ -89,6 +109,21 @@
     private void UseDevice(DetectedPowerSupply device)
     {
         Selector.Select(PowerSupplyFactory.Create(device.PortName), isDummy: false);
+        Nav.NavigateTo("/dashboard");
+    }
+
+    private void UseMqtt()
+    {
+        try
+        {
+            Selector.Select(PowerSupplyFactory.CreateMqtt(_mqttHost.Trim(), _mqttPsuId.Trim()), isDummy: false);
+        }
+        catch (Exception ex)
+        {
+            _mqttError = ex.Message;
+            return;
+        }
+
         Nav.NavigateTo("/dashboard");
     }
 

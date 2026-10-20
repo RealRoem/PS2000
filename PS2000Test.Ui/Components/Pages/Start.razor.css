@@ -184,6 +184,45 @@
     flex: 1;
 }
 
+.option.mqtt {
+    cursor: default;
+}
+
+.option.mqtt:hover {
+    transform: none;
+}
+
+.mqtt-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.mqtt-fields input {
+    flex: 1 1 200px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: oklch(0.13 0.012 250 / 0.6);
+    color: var(--text);
+    font: inherit;
+    font-size: clamp(14px, 1vw, 18px);
+}
+
+.mqtt-error {
+    margin-top: 10px;
+    color: var(--red);
+    font-size: clamp(14px, 1vw, 18px);
+}
+
+.option-cta {
+    background: none;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
 .option-name {
     font-size: clamp(18px, 1.4vw, 28px);
     font-weight: 600;
